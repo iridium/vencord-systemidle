@@ -57,7 +57,8 @@ export default definePlugin({
             find: 'type:"IDLE",idle:',
             replacement: [
                 {
-                    match: /(?<=Date\.now\(\)-\i>)\i\.\i\|\|/,
+                    // Discord stable inlines the 10 min timeout as 6e5; older builds used a constant
+                    match: /(?<=Date\.now\(\)-\i>)(?:\i\.\i|6e5)\|\|/,
                     replace: "Infinity||"
                 },
                 {
