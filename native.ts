@@ -19,6 +19,12 @@ let proc: ChildProcess | null = null;
 let lockProc: ChildProcess | null = null;
 let timeoutSec = 0;
 
+// Run children under setpriv --pdeathsig so the kernel kills them when Vesktop exits, even on a crash or SIGKILL.
+// Otherwise they're reparented to systemd and keep running (and holding inherited fds) forever.
+function spawnTied(cmd: string, args: string[]) {
+    return spawn("setpriv", ["--pdeathsig", "TERM", "--", cmd, ...args], { stdio: ["ignore", "pipe", "ignore"] });
+}
+
 function onLines(p: ChildProcess, cb: (line: string) => void) {
     let buf = "";
     p.stdout!.on("data", d => {
@@ -34,7 +40,7 @@ function onLines(p: ChildProcess, cb: (line: string) => void) {
 function startLockWatcher() {
     if (lockProc) return;
     // KDE's screen locker emits org.freedesktop.ScreenSaver.ActiveChanged(bool) on lock/unlock
-    const p = spawn("gdbus", ["monitor", "--session", "--dest", "org.freedesktop.ScreenSaver"], { stdio: ["ignore", "pipe", "ignore"] });
+    const p = spawnTied("gdbus", ["monitor", "--session", "--dest", "org.freedesktop.ScreenSaver"]);
     lockProc = p;
     onLines(p, line => {
         const m = /ActiveChanged \((true|false),\)/.exec(line);
@@ -45,7 +51,7 @@ function startLockWatcher() {
 }
 
 function startIdleWatcher(seconds: number) {
-    const p = spawn(HELPER, [String(seconds)], { stdio: ["ignore", "pipe", "ignore"] });
+    const p = spawnTied(HELPER, [String(seconds)]);
     proc = p;
     onLines(p, line => {
         if (line === "idle") idle = true;
@@ -56,7 +62,10 @@ function startIdleWatcher(seconds: number) {
         if (proc !== p) return;
         proc = null;
         idle = false;
-        error ??= `input-idle exited with code ${code}`;
+        // setpriv exits 127 when it can't exec the helper
+        error ??= code === 127
+            ? `input-idle: ${HELPER} not found (build it with: make -C src/userplugins/systemIdle/helper install)`
+            : `input-idle exited with code ${code}`;
     });
 }
 

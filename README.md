@@ -16,6 +16,7 @@ Tested on KDE Plasma (Wayland). Other compositors that support `ext-idle-notify-
 
 - Vesktop with a custom Vencord build
 - `gdbus` (glib2)
+- `setpriv` (util-linux), so the helpers exit when Vesktop does
 - A C compiler, `wayland-scanner`, and `wayland-protocols` to build the helper
 
 ## Install
